@@ -16,23 +16,31 @@ The player with the maximum score at the end 500 rounds wins the game. The formu
 
 ## Rules and Actions
 
-> IDLE
-Both troop and base can choose to discard their action.
+> (IDLE, (ROW, COL))
 
-> CREATE_TROOP
-Only a base can create a troop. The troop is spawned on the same position as the base. If there is any troop standing on the base, the action will fail. The troop will take an action in the same round but will get its turn when all the existing units on the board have taken their action.
+Both troop and base can choose to discard their action. It is necessary to give the row and col values for a valid input, but they are ignored.
 
-> MINE
-A troop can mine gold if it is standing on a gold mine. The amount of gold is a function of the height of the troop i.e. `gold = height * 2`. The gold is immediately added to the player's reserves.
+> (CREATE_TROOP, (ROW, COL))
 
-> MOVE ROW COLUMN
+Only a base can create a troop. The troop must be created on a position adjacent to the base. If there is any troop standing on the base, the action will fail. The troop will take an action in the same round but will get its turn when all the existing units on the board have taken their action.
+
+> (MINE, (ROW, COL))
+
+A troop can mine gold if it is standing on a gold mine. The amount of gold is a function of the height of the troop i.e. `gold = height * 2`. The gold is immediately added to the player's reserves. It is necessary to give the row and col values for a valid input, but they are ignored.
+
+
+> (MOVE, (ROW, COL))
+
 Only a troop can move. The destination position, determined by the row and column values, must be adjacent to the troop's current position. The action will fail if the destination position is occupied by a troop.
 
-> CAPTURE ROW COLUMN
+> (CAPTURE, (ROW, COL))
+
 A troop can capture an enemy troop. The destination position must be adjacent to the troop's current position. The combined troop now belongs to the player, who performed the capture. Imagine tumblers stacked on top of each other and the whole troop belonging to the tumbler on top (which performed the capture). The captured unit cannot perform any action.
 
-> CLIMB ROW COLUMN
+> (CLIMB, (ROW, COL))
+
 A troop can climb on a friendly troop. The destination position must be adjacent to the troop's current position. The troop that was climbed upon cannot perform any action.
 
-> SPLIT ROW COLUMN
-A troop can split itself in two parts if its height exceeds 1. The destination position must be adjacent to the troops current position and it must not be occupied by any other troop. The top half is the old troop and the bottom half is a new troop. The new troop can take an action in the same round after all existing units have performed their actions. The split for even and odd height is given as, `2*n (even troop) -> (n) old troop, (n) new troop` and `2*n + 1 (odd troop) -> (n) old troop, (n + 1) new troop`.
+> (SPLIT, (ROW, COL))
+
+A troop can split itself in two parts if its height greater than 1. The destination position must be adjacent to the troops current position and it must not be occupied by any other unit. The top half is the old troop and the bottom half is the new troop. The old troop in moved to the destination position, while the new troop stays at the current position. The new troop can take an action in the same round after all existing units have performed their actions. The split for even and odd height is given as, `2*n (even troop) -> (n) old troop, (n) new troop` and `2*n + 1 (odd troop) -> (n) old troop, (n + 1) new troop`.
