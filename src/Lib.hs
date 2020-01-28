@@ -27,5 +27,6 @@ data Queue = Queue { redqueue :: [Unit], bluequeue :: [Unit]}
 
 data ActionName = IDLE | CREATE_TROOP | MINE | MOVE | CAPTURE | CLIMB | SPLIT deriving (Show, Read, Eq, Enum)
 data Action = Action {actionname :: ActionName, actionpos :: Maybe Pos, actionunit :: Unit} deriving (Read)
+type InputAction = (ActionName, Maybe Pos)
 data GameState = GameState {gamequeue :: Queue, gamegold :: Gold, gameunitboard :: Map Pos Unit}
 data Move = Move {movename :: ActionName, movepos :: Maybe Pos}
