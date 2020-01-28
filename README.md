@@ -1,18 +1,22 @@
 # UTTI
+
 Utti is a multi-player strategy game, it is unlike other games you have played. Instead of playing directly, you create a logic that takes decisions in your place. You can write the logic in your preferred programming language. Prior programming experience is not required and this game is an excellent way to dip you toes in programming.
 
 ## Overview
+
 The game is a 2D board of 100 rows and 100 columns. Gold mines will be symmetrically distributed on the board. The board will be symmetrical vertically, horizontally or both. You and your opponent will spawn with one base on opposite sides of the line of symmetry, (vertical line if board is symmetric in both ways).
 
-You have two types of units, the `troop` and the `base`. The base can creates troops and the troops can move to adjacent square, mine gold or create a base. Troops can interact with each other capturing or climbing on other units. Imagine troops as inverted  tumblers that can be stacked on top of each other and bases as plates (which cannot be stacked, because game logic!).
+You have two types of units, the `troop` and the `base`. The base can creates troops and the troops can move to adjacent square, mine gold or create a base. Troops can interact with each other capturing or climbing on other units. Imagine troops as inverted tumblers that can be stacked on top of each other and bases as plates (which cannot be stacked, because game logic!).
 
 The game is played in rounds. In each round, every unit gets one action. The order of turns alternate between each players units i.e. player 1 unit takes an action, player 2 unit takes an action, player 1 unit takes an action ... and so on.
 
 Exact rules regarding each action is given below.
 
 ## Objective
+
 The player with the maximum score at the end 500 rounds wins the game. The formula for the score is,
-> total height of troops * 5 + total number of bases * 100 + current gold reserve
+
+> total height of troops _ 5 + total number of bases _ 100 + current gold reserve
 
 ## Rules and Actions
 
@@ -27,7 +31,6 @@ Only a base can create a troop. The troop must be created on a position adjacent
 > (MINE, (ROW, COL))
 
 A troop can mine gold if it is standing on a gold mine. The amount of gold is a function of the height of the troop i.e. `gold = height * 2`. The gold is immediately added to the player's reserves. It is necessary to give the row and col values for a valid input, but they are ignored.
-
 
 > (MOVE, (ROW, COL))
 
