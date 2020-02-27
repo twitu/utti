@@ -6,122 +6,155 @@ where
 import           Lib
 import           Construct
 import           System.IO
-import qualified Data.Map.Strict               as Map
-import           Data.Map                       ( Map() )
-import           Flow
 import           Control.Monad.Writer
+
+-- defining constants
+newUnitHeight = 1
+unitCaptureHeight = 1
+mineGoldAmount = 5
+unitGoldCost = 10
+unitMaxHeight = 20
+baseMaxHealth = 5
+destroyBaseReward = 200
 
 -- change functions modify game state and return a new copy
 
 -- change game gold with given amount and log change
 changeGold :: Gold -> GameState -> Writer [String] GameState
-changeGold amount GameState { gamequeue = a, gamegold = gold, gameunitboard = b }
-    = writer (GameState a newgold b, ["changeGold " ++ show gold])
+changeGold amount state@GameState{gold = gold}
+    = writer (state {gold = newgold}, ["changeGold " ++ show newgold])
   where
     newgold = Gold ((redgold amount +) $ redgold gold)
                    ((bluegold amount +) $ bluegold gold)
 
 -- remove unit at given position from unit board and log change
 removeUnit :: Pos -> GameState -> Writer [String] GameState
-removeUnit pos GameState { gamequeue = a, gamegold = b, gameunitboard = board }
+removeUnit target state@GameState{gameunits = units}
     = writer
-        (GameState a b (Map.delete pos board), ["removeUnit " ++ show remunit])
-    where remunit = (Map.!) board pos
+        (state{gameunits=remunit}, ["removeUnit from pos " ++ show target])
+    where remunit = filter (\unit -> pos unit /= target) units
 
 -- add unit at given position to unit board and log change
-addUnit :: Pos -> Unit -> GameState -> Writer [String] GameState
-addUnit pos unit GameState { gamequeue = a, gamegold = b, gameunitboard = board }
+addUnit :: Unit -> GameState -> Writer [String] GameState
+addUnit unit state@GameState{gameunits = units}
     = writer
-        (GameState a b (Map.insert pos unit board), ["addUnit " ++ show unit])
+        (state{gameunits = newunits}, ["addUnit " ++ show unit])
+    where newunits = unit : units
 
 -- add unit to its team queue and log change
 addToQueue :: Unit -> GameState -> Writer [String] GameState
-addToQueue unit@(Unit _ _ Red _ _) GameState { gamequeue = queue, gamegold = a, gameunitboard = b }
-    = writer (GameState newqueue a b, ["addToQueue Red " ++ show unit])
-    where newqueue = Queue (redqueue queue ++ [unit]) (bluequeue queue)
-addToQueue unit@(Unit _ _ Blue _ _) GameState { gamequeue = queue, gamegold = a, gameunitboard = b }
-    = writer (GameState newqueue a b, ["addToQueue Blue " ++ show unit])
-    where newqueue = Queue (redqueue queue ++ [unit]) (bluequeue queue)
+addToQueue unit@Unit{team = Red} state@GameState{queue = Queue redque blueque}
+    = writer (state{queue = newqueue}, ["addToQueue Red " ++ show unit])
+    where
+        newredqueue = redque ++ [unit]
+        newqueue = Queue newredqueue blueque
+addToQueue unit@Unit{team = Blue} state@GameState{queue = Queue redque blueque}
+    = writer (state{queue = newqueue}, ["addToQueue Blue " ++ show unit])
+    where
+        newbluequeue = blueque ++ [unit]
+        newqueue = Queue redque newbluequeue
+
+-- remove unit from queue and log change
+removeFromQueue :: Pos -> GameState -> Writer [String] GameState
+removeFromQueue removepos state@GameState{queue = queue}
+    = writer (state{queue = newqueue}, ["removeFromQueue unit at position " ++ show removepos])
+    where
+        bluenew = filter (\unit -> removepos /= pos unit) $ bluequeue queue
+        rednew = filter (\unit -> removepos /= pos unit) $ redqueue queue
+        newqueue = Queue rednew bluenew
 
 -- consequence functions make changes to game state and log them for an action
 
--- idle action has no consequence
-idleConsequence :: Action -> GameState -> Writer [String] GameState
-idleConsequence action = return
-
 -- create action adds a unit to the board and queue
-createConsequence :: Action -> GameState -> Writer [String] GameState
-createConsequence Action { actionunit = (Unit _ _ team _ _), actionpos = Just pos } state
-    = changeGold updategold state >>= addUnit pos newUnit >>= addToQueue newUnit
+createConsequence :: Unit -> Action -> GameState -> Writer [String] GameState
+createConsequence unit (CREATE pos) state@GameState{constructid = id}
+    = changeGold updategold state >>= addUnit newUnit >>= addToQueue newUnit
   where
-    updategold = if team == Red then Gold (-10) 0 else Gold 0 (-10)
-    newUnit    = Unit pos 1 team Troop constructUnitId
+    unitteam = team unit
+    updategold = if unitteam == Red then Gold (-unitGoldCost) 0 else Gold 0 (-unitGoldCost)
+    newUnit    = Unit pos unitteam (Miner newUnitHeight) id
+    updatestate = state {constructid = id + 1}
 
 -- move action moves a unit
-moveConsequence :: Action -> GameState -> Writer [String] GameState
-moveConsequence Action { actionpos = Just newpos, actionunit = unit } state =
-    removeUnit curpos state >>= addUnit newpos movedunit
+moveConsequence :: Unit -> Action -> GameState -> Writer [String] GameState
+moveConsequence unit (MOVE nextpos) state =
+    removeUnit curpos state >>= addUnit movedunit
   where
-    (Unit curpos b c d e) = unit
-    movedunit             = Unit newpos b c d e
+    curpos = pos unit
+    movedunit = unit {pos = nextpos}
 
--- capture action creates a new unit by stacking captured and capturor unit
-captureConsequence :: Action -> GameState -> Writer [String] GameState
-captureConsequence Action { actionpos = Just capturepos, actionunit = unit } state
-    = removeUnit (pos unit) state
+-- capture action creates a new unit by stacking captured and captor unit
+captureConsequence :: Unit -> Action -> GameState -> Writer [String] GameState
+captureConsequence unit (CAPTURE capturepos) state
+    = removeUnit curpos state
         >>= removeUnit capturepos
-        >>= addUnit capturepos newunit
+        >>= addUnit newunit
+        >>= removeFromQueue capturepos
   where
-    enemyunit = gameunitboard state Map.! capturepos
-    newunit =
-        Unit capturepos (height enemyunit + 1) (team unit) Troop (unitid unit)
-
--- climb action creates a new unit by stacking a friendly unit on top of another
-climbConsequence :: Action -> GameState -> Writer [String] GameState
-climbConsequence Action { actionpos = Just capturepos, actionunit = unit } state
-    = removeUnit (pos unit) state
-        >>= removeUnit capturepos
-        >>= addUnit capturepos newunit
-  where
-    friendlyunit = gameunitboard state Map.! capturepos
-    newunit      = Unit capturepos
-                        (height friendlyunit + 1)
-                        (team unit)
-                        Troop
-                        (unitid unit)
+    curpos = pos unit
+    oldunit = head $ filter (\unit -> pos unit == capturepos) $ gameunits state
+    Miner oldheight = unittype oldunit
+    newheight = oldheight + 1
+    newunit = if newheight == unitMaxHeight
+            then unit {pos = capturepos, unittype = Base baseMaxHealth}
+            else unit {pos = capturepos, unittype = Miner newheight}
 
 -- mine action mines gold in proportion to height of unit
-mineConsequence :: Action -> GameState -> Writer [String] GameState
-mineConsequence Action { actionpos = Just minepos, actionunit = Unit _ height team _ _ }
-    = changeGold updategold
+mineConsequence :: Unit -> Action -> GameState -> Writer [String] GameState
+mineConsequence Unit {team = unitteam, unittype = Miner height} _ = changeGold updategold
   where
     updategold =
-        if team == Red then Gold (10 * height) 0 else Gold 0 (10 * height)
+        if unitteam == Red then Gold (mineGoldAmount * height) 0 else Gold 0 (mineGoldAmount * height)
 
 -- split action splits a unit in half and adds the newunit to game queue
-splitConsequnce :: Action -> GameState -> Writer [String] GameState
-splitConsequnce Action { actionpos = Just splitpos, actionunit = unit@(Unit curpos height team _ curid) } state
-    = removeUnit curpos state
-        >>= addUnit curpos   newunit
-        >>= addUnit splitpos oldunit
+splitConsequnce :: Unit -> Action -> GameState -> Writer [String] GameState
+splitConsequnce unit@Unit{pos = curpos, unittype = Miner height, team = unitteam, unitid = curid} (SPLIT splitpos) state@GameState{constructid = id}
+    = removeUnit curpos newstate
+        >>= addUnit oldunit
+        >>= addUnit newunit
         >>= addToQueue newunit
   where
-    oldunit = Unit splitpos (height `div` 2) team Troop curid
-    newunit = Unit curpos (height - height `div` 2) team Troop constructUnitId
+    halfheight = height `div` 2
+    newunit = Unit splitpos unitteam (Miner (height - halfheight)) (id + 1)
+    oldunit = Unit curpos unitteam (Miner halfheight) curid
+    newstate = state {constructid = id + 1}
+
+-- TODO: attacking a base pushes its turn to the end of the queue
+-- fix by doing an in place update in the queue
+-- attack action removes one health from the attacked base
+-- if the health reaches 0, the base is destroyed
+attackConsequence :: Unit -> Action -> GameState -> Writer [String] GameState
+attackConsequence Unit {team = unitteam} (ATTACK attackpos) state =
+    if curhealth == 1
+        then
+            removeUnit attackpos state
+            >>= changeGold updateGold
+        else
+            removeUnit attackpos state
+            >>= addUnit updatebase
+            >>= removeFromQueue attackpos
+            >>= addToQueue updatebase
+    where
+        enemybase = head $ filter (\unit -> pos unit == attackpos) $ gameunits state
+        Base curhealth = unittype enemybase
+        updatebase = enemybase {unittype = Base $ curhealth - 1}
+        updateGold = if unitteam == Red then Gold destroyBaseReward 0 else Gold 0 destroyBaseReward
 
 -- chooses which consequence to apply based on action
-applyConsequenceFunc :: GameState -> Action -> (GameState, [String])
-applyConsequenceFunc state action@(Action IDLE _ _) =
-    runWriter $ idleConsequence action state
-applyConsequenceFunc state action@(Action CREATE_TROOP _ _) =
-    runWriter $ createConsequence action state
-applyConsequenceFunc state action@(Action MINE _ _) =
-    runWriter $ mineConsequence action state
-applyConsequenceFunc state action@(Action MOVE _ _) =
-    runWriter $ moveConsequence action state
-applyConsequenceFunc state action@(Action CAPTURE _ _) =
-    runWriter $ captureConsequence action state
-applyConsequenceFunc state action@(Action CLIMB _ _) =
-    runWriter $ climbConsequence action state
-applyConsequenceFunc state action@(Action SPLIT _ _) =
-    runWriter $ splitConsequnce action state
+applyConsequenceFunc :: Unit -> GameState -> Action -> (GameState, [String])
+applyConsequenceFunc unit state action@IDLE =
+    (state, [])
+applyConsequenceFunc unit state action@(CREATE _) =
+    runWriter $ createConsequence unit action state
+applyConsequenceFunc unit state action@MINE =
+    runWriter $ mineConsequence unit action state
+applyConsequenceFunc unit state action@(MOVE _) =
+    runWriter $ moveConsequence unit action state
+applyConsequenceFunc unit state action@(CAPTURE _) =
+    runWriter $ captureConsequence unit action state
+applyConsequenceFunc unit state action@(SPLIT _) =
+    runWriter $ splitConsequnce unit action state
+applyConsequenceFunc unit state action@(ATTACK _) =
+    runWriter $ attackConsequence unit action state
+applyConsequenceFunc unit state action@(Error message) =
+    (state, [message])

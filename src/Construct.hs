@@ -1,9 +1,6 @@
-module Construct
-    ( constructIntialGameState
+module Construct 
+    ( constructInitialGameState
     , reconstructGameState
-    , constructGoldBoard
-    , constructGameBoard
-    , constructUnitId
     )
 where
 
@@ -14,49 +11,40 @@ import           Flow                           ( (|>) )
 import           Data.List                      ( sortOn )
 import           Data.Ord                       ( comparing )
 
+-- constants
+boardDimensions = 10
 
 -- Construct turn queue from all units on board
 -- Red and Blue units are put in separate queues in ascending order of id
-constructQueue :: Map Pos Unit -> Queue
-constructQueue unitboard = Queue redunits blueunits
+constructQueue :: [Unit] -> Queue
+constructQueue allunits = Queue redunits blueunits
   where
-    allunits = Map.elems unitboard
     blueunits =
         allunits |> filter (\unit -> Blue == team unit) |> sortOn unitid
     redunits = allunits |> filter (\unit -> Red == team unit) |> sortOn unitid
 
--- construct game board creates the boundaries of the game board
-constructGameBoard :: Pos -> Bool
-constructGameBoard (x, y) = 0 <= x && x < 20 && 0 <= y && y < 20  -- dummy implementation
-
--- construct gold board populates the game board with gold mines
-constructGoldBoard :: Pos -> Bool
-constructGoldBoard = undefined
-
 -- unit board maps positions on the board to units present at those positions
-constructUnitBoard :: Map Pos Unit
-constructUnitBoard = Map.fromList
-    [(pos redbase, redbase), (pos bluebase, bluebase)]
+constructUnitBoard :: [Unit]
+constructUnitBoard = [redbase, bluebase]
   where
-    redbase  = Unit (1, 1) 1 Red Base 1
-    bluebase = Unit (19, 19) 1 Blue Base 2
+    redbase  = Unit (1, 1) Red (Base 5) 1
+    bluebase = Unit (boardDimensions - 1, boardDimensions - 1) Blue (Base 5) 2
 
 -- construct initial gamestate
-constructIntialGameState :: GameState
-constructIntialGameState = GameState (constructQueue unitboard)
+constructInitialGameState :: GameState
+constructInitialGameState = GameState boardDimensions (constructQueue unitboard)
                                      (Gold 100 100)
                                      unitboard
+                                     constructGoldBoard
+                                     0
     where unitboard = constructUnitBoard
 
 -- reconstruct gamestate for each round by updating the turn queue
 -- new turn queue is created from previous round unit board
 reconstructGameState :: GameState -> GameState
-reconstructGameState GameState { gamequeue = q, gamegold = gold, gameunitboard = uboard }
-    = newstate
-    where newstate = GameState (constructQueue uboard) gold uboard
+reconstructGameState state = newstate
+    where newstate = state {queue = constructQueue $ gameunits state}
 
-constructUnitId :: Int
-constructUnitId = undefined
-
-nextTurnUnit :: Unit
-nextTurnUnit = undefined
+-- construct gold board populates the game board with gold mines
+constructGoldBoard :: [Bool]
+constructGoldBoard = [False,False,False,True,False,False,False,False,True,False,False,False,False,False,False,False,False,False,False,True,False,False,False,True,False,False,False,False,False,True,True,False,True,False,False,True,False,True,False,False,False,False,False,False,False,False,False,True,False,False,False,False,False,True,False,False,True,True,False,False,False,False,False,False,False,True,True,False,True,False,False,False,False,True,True,True,False,False,True,True,True,False,False,False,False,False,True,True,False,False,False,True,True,False,False,False,False,True,False,False] 

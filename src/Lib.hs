@@ -4,7 +4,6 @@ module Lib
     , Pos
     , Height
     , Unit(..)
-    , ActionName(..)
     , Action(..)
     , Gold(..)
     , Queue(..)
@@ -12,21 +11,16 @@ module Lib
     )
 where
 
-import qualified Data.Map.Strict               as Map
-import           Data.Map                       ( Map() )
 import           Data.Maybe
 
 data Team = Red | Blue deriving (Show, Read, Eq, Enum)
-data Type = Troop | Base deriving (Show, Read, Eq, Enum)
+data Type = Miner {height :: Int} | Base {health :: Int} deriving (Show, Read, Eq)
 type Pos = (Int, Int)
 type Height = Int
-data Unit = Unit {pos :: Pos, height :: Height, team :: Team, unittype :: Type, unitid :: Int} deriving (Show, Read)
+data Unit = Unit {pos :: Pos, team :: Team, unittype :: Type, unitid :: Int} deriving (Show, Read, Eq)
 
-data Gold = Gold { redgold :: Int, bluegold :: Int}  deriving (Show) -- indicating amount of gold for two players Red and Blue respectively
-data Queue = Queue { redqueue :: [Unit], bluequeue :: [Unit]}
+data Gold = Gold {redgold :: Int, bluegold :: Int}  deriving (Show) -- indicating amount of gold for two players Red and Blue respectively
+data Queue = Queue {redqueue :: [Unit], bluequeue :: [Unit]} deriving (Show)
 
-data ActionName = IDLE | CREATE_TROOP | MINE | MOVE | CAPTURE | CLIMB | SPLIT deriving (Show, Read, Eq, Enum)
-data Action = Action {actionname :: ActionName, actionpos :: Maybe Pos, actionunit :: Unit} deriving (Read)
-type InputAction = (ActionName, Maybe Pos)
-data GameState = GameState {gamequeue :: Queue, gamegold :: Gold, gameunitboard :: Map Pos Unit}
-data Move = Move {movename :: ActionName, movepos :: Maybe Pos}
+data Action = IDLE | MINE | CREATE Pos | MOVE Pos | CAPTURE Pos | SPLIT Pos | ATTACK Pos | Error String deriving (Show, Read, Eq)
+data GameState = GameState {bound :: Int, queue :: Queue, gold :: Gold, gameunits :: [Unit], goldMine :: [Bool], constructid :: Int} deriving (Show)

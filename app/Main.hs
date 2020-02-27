@@ -7,64 +7,63 @@ import           Consequence
 import           Construct
 import           Data.Maybe
 
-main :: IO ()
+main :: IO (GameState, Team)
 main = do
-  playRounds 0 constructInitialGameState
+  print $ show constructInitialGameState
+  playRounds 0 constructInitialGameState Red
 
-getInputAction :: IO (ActionName, Maybe Pos)
-getInputAction = readLine
+playRounds :: Int -> GameState -> Team -> IO (GameState, Team)
+playRounds roundnum state curteam = do
+  print $ "Round " ++ show roundnum
+  (tempstate, nextteam) <- playRound (state, curteam)
+  if roundnum == 500
+  then return (tempstate, nextteam)
+  else 
+    playRounds (roundnum + 1) (reconstructGameState tempstate) nextteam
 
-createAction :: Unit -> (ActionName, Maybe Pos) -> Maybe Action
-createAction unit (name, maybepos) = return (Action name maybepos unit)
-
-playRounds :: Int -> GameState -> GameState
-playRounds roundnum state = if roundnum < 500
-  then playRounds (roundnum + 1) newstate
-  else state
-  where newstate = reconstructGameState $ playRound state
-
-playRound :: (GameState, Unit) -> (GameState, Unit)
-playRound (state, prevunit) = if endRound state
-  then (state, prevunit)
-  else playRound (newstate, turnunit)
+playRound :: (GameState, Team) -> IO (GameState, Team)
+playRound (state, curteam) = do
+  newstate <- playTurn tempstate turnunit
+  if endRound newstate
+  then return (newstate, nextTeam)
+  else playRound (newstate, nextTeam)
  where
-  (tempstate, turnunit) = getNextTurnUnit $ nextTeamTurn prevunit state
-  (newstate , log     ) = if isJust $ applyCheck tempstate turnaction
-    then applyConsequenceFunc tempstate turnaction
-    else (tempstate, [])
+    (tempstate, turnunit) = getNextTurnUnit curteam state
+    nextTeam = nextTeamTurn $ team turnunit
 
-playTurn :: (GameState, Unit) -> (GameState, [String])
+playTurn :: GameState -> Unit -> IO GameState
 playTurn curstate unit = do
-  inputaction <- getInputAction
-  if isJust $ applyCheck curstate $ createAction inputaction
-    then applyConsequenceFunc curstate 
-  where
-    turnaction = createAction inputaction
-
+    print $ show unit
+    inputaction <- readLn
+    case applyCheck unit curstate inputaction of
+      Error message -> printTurnLog (curstate, [message])
+      _ -> printTurnLog $ applyConsequenceFunc unit curstate inputaction
 
 endRound :: GameState -> Bool
-endRound state@(GameState (Queue redqueue bluequeue) a b) =
+endRound state@GameState {queue = Queue redqueue bluequeue} =
   null redqueue && null bluequeue
 
 getNextTurnUnit :: Team -> GameState -> (GameState, Unit)
-getNextTurnUnit Red state@(GameState (Queue redqueue bluequeue) a b) =
+getNextTurnUnit Red state@GameState {queue = Queue redqueue bluequeue} =
   if null redqueue
     then getNextTurnUnit Blue state
-    else (GameState newqueue a b, nextunit)
+    else (state {queue = newqueue}, nextunit)
  where
   nextunit = head redqueue
   newqueue = Queue (tail redqueue) bluequeue
-getNextTurnUnit Blue state@(GameState (Queue redqueue bluequeue) a b) =
+getNextTurnUnit Blue state@GameState {queue = Queue redqueue bluequeue} =
   if null bluequeue
     then getNextTurnUnit Red state
-    else (GameState newqueue a b, nextunit)
+    else (state {queue = newqueue}, nextunit)
  where
   nextunit = head bluequeue
   newqueue = Queue redqueue (tail bluequeue)
 
-printTurnLog :: [String] -> [IO ()]
-printTurnLog = map putStrLn
+printTurnLog :: (GameState, [String]) -> IO GameState
+printTurnLog (state, log) = do
+  mapM_ putStrLn log
+  return state
 
-nextTeamTurn :: Unit -> Team
-nextTeamTurn Unit { team = Red }  = Blue
-nextTeamTurn Unit { team = Blue } = Red
+nextTeamTurn :: Team -> Team
+nextTeamTurn Red  = Blue
+nextTeamTurn Blue = Red

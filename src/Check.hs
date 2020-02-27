@@ -3,62 +3,60 @@ module Check
     )
 where
 
-import           Rule
+import           Flow
 import           Lib
+import           Rule
 
-createCheck :: GameState -> Action -> Maybe Action
-createCheck state action =
-    unitIsBase action
-        >>= validPos
-        >>= posIsNotOccupied state
-        >>= goldAvailable state
+mineCheck :: Unit -> GameState -> Action -> Action
+mineCheck unit state action =
+    unitIsMiner unit action
+    |> unitOnGold unit state
 
-moveCheck :: GameState -> Action -> Maybe Action
-moveCheck state action =
-    unitIsTroop action
-        >>= validPos
-        >>= posAdjacentToUnit
-        >>= posIsNotOccupied state
+createCheck :: Unit -> GameState -> Action -> Action
+createCheck unit state action =
+    unitIsBase unit action
+    |> validPos state
+    |> posIsNotOccupied state
+    |> goldAvailable unit state
 
-captureCheck :: GameState -> Action -> Maybe Action
-captureCheck state action =
-    unitIsTroop action
-        >>= validPos
-        >>= posAdjacentToUnit
-        >>= posIsOccupied state
-        >>= posIsOccupiedByTroop state
-        >>= isEnemyOnPos state
-        >>= validHeight state
+moveCheck :: Unit -> GameState -> Action -> Action
+moveCheck unit state action =
+    unitIsMiner unit action
+    |> validPos state
+    |> posAdjacentToUnit unit
+    |> posIsNotOccupied state
 
-climbCheck :: GameState -> Action -> Maybe Action
-climbCheck state action =
-    unitIsTroop action
-        >>= validPos
-        >>= posAdjacentToUnit
-        >>= posIsOccupied state
-        >>= posIsOccupiedByTroop state
-        >>= isFriendlyOnPos state
-        >>= validHeight state
+captureCheck :: Unit -> GameState -> Action -> Action
+captureCheck unit state action =
+    unitIsMiner unit action
+    |> validPos state
+    |> posAdjacentToUnit unit
+    |> posIsOccupied state
+    |> posIsOccupiedByMiner state
+    |> validHeight unit
 
-mineCheck :: GameState -> Action -> Maybe Action
-mineCheck state action = unitIsTroop action >>= validPos >>= unitOnGold state
+splitCheck :: Unit -> GameState -> Action -> Action
+splitCheck unit state action =
+    unitIsMiner unit action
+    |> validPos state
+    |> posAdjacentToUnit unit
+    |> posIsNotOccupied state
+    |> validHeight unit
 
-splitCheck :: GameState -> Action -> Maybe Action
-splitCheck state action =
-    unitIsTroop action
-        >>= validPos
-        >>= posAdjacentToUnit
-        >>= posIsNotOccupied state
-        >>= validHeight state
+attackCheck :: Unit -> GameState -> Action -> Action
+attackCheck unit state action =
+    unitIsMiner unit action
+    |> validPos state
+    |> posAdjacentToUnit unit
+    |> posIsOccupied state
+    |> posIsOccupiedByEnemyBase unit state
 
-idleCheck :: GameState -> Action -> Maybe Action
-idleCheck state = Just
-
-applyCheck :: GameState -> Action -> Maybe Action
-applyCheck state action@(Action IDLE         _ _) = idleCheck state action
-applyCheck state action@(Action CREATE_TROOP _ _) = createCheck state action
-applyCheck state action@(Action MINE         _ _) = mineCheck state action
-applyCheck state action@(Action MOVE         _ _) = moveCheck state action
-applyCheck state action@(Action CAPTURE      _ _) = captureCheck state action
-applyCheck state action@(Action CLIMB        _ _) = climbCheck state action
-applyCheck state action@(Action SPLIT        _ _) = splitCheck state action
+applyCheck :: Unit -> GameState -> Action -> Action
+applyCheck unit state action@IDLE      = action
+applyCheck unit state action@(Error _)   = action
+applyCheck unit state action@(CREATE _)  = createCheck unit state action
+applyCheck unit state action@MINE    = mineCheck unit state action
+applyCheck unit state action@(MOVE _)    = moveCheck unit state action
+applyCheck unit state action@(CAPTURE _) = captureCheck unit state action
+applyCheck unit state action@(SPLIT _)   = splitCheck unit state action
+applyCheck unit state action@(ATTACK _)  = attackCheck unit state action
